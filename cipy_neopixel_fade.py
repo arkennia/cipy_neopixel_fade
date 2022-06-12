@@ -22,6 +22,7 @@ class Fade:
     def __init__(self, bright_hold_t, dim_hold_t, bright_t, dim_t, max_val, min_val):
         """
         Intialize the Fade class.
+
         Keyword Arguments:
             bright_hold_t: Number of ticks to hold at the max setting.
             dim_hold_t: Number of ticks to hold at min setting.
@@ -37,26 +38,47 @@ class Fade:
         self._dim_hold_t = dim_hold_t
         self._max_val = max_val
         self._min_val = min_val
+        # The number of ticks it takes before updating the current_bright value.
         self.__bright_step_ticks = bright_t // (max_val - min_val)
+        # The number of ticks it takes before updating the current_dim value.
         self.__dim_step_ticks = dim_t // (max_val - min_val)
+        # Elapsed number of ticks for the current state.
         self.__elapsed_ticks = 0
+        # The current value of the brightness. Im not sure if I need
+        # current bright and dim.
         self.__current_bright = 0
-        self.__current_dim = min_val
-        self.__current_state = 0
+        # Records the current state.
+        self.__current_state = INCREASING
+        # The number of ticks to stay in the current state.
         self.__current_state_ticks = 0
 
+    def update(self):
+        """
+        Update the class, checking if enough time has passed to update any states.
+
+        Returns:
+            The current brightness value.
+        """
+        self.__elapsed_ticks += adafruit_ticks.ticks_ms()
+
+        # Return true iff current state ticks is less than elapsed ticks,
+        # assuming that they are within 2**28 ticks.
+        if adafruit_ticks.ticks_less(self.__current_state_ticks, self.__elapsed_ticks):
+            self.__elapsed_ticks = 0
+            self._update_state()
+        return self.__current_bright
+
+    def _update_state(self):
+        self.STATES[self.__current_state]()
+
     def __create_states(self):
+        """Create the self.STATES dict."""
         self.STATES = {
             INCREASING: self.__increasing_state,
             BRIGHTHOLD: self.__brighthold_state,
             DECREASING: self.__decreasing_state,
             DIMHOLD: self.__dimhold_state
         }
-
-    def _update_state(self):
-        self.__elapsed_ticks += adafruit_ticks.ticks_ms()
-        if self.__current_state == 0:
-            pass
 
     def __increasing_state(self):
         if self.__current_bright >= self._max_val:
@@ -74,8 +96,8 @@ class Fade:
         self.__current_state_ticks = self.__bright_step_ticks
 
     def __decreasing_state(self):
-        if self.__current_dim <= self._min_val:
+        if self.__current_bright <= self._min_val:
             self.__current_state = DIMHOLD
             self.__current_state_ticks = self._dim_hold_t
         else:
-            self.__current_dim -= 1
+            self.__current_bright -= 1
